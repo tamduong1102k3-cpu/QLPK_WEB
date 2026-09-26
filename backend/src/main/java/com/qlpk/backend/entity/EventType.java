@@ -1,0 +1,22 @@
+package com.qlpk.backend.entity;
+
+public enum EventType {
+
+    LICH_KHAM_CREATED,
+
+    LICH_KHAM_UPDATED,
+
+    LICH_KHAM_CANCELLED,
+
+    LICH_KHAM_REMINDER,
+
+    LICH_TAI_KHAM_CREATED,
+
+    PAYMENT_SUCCESS,
+
+    PAYMENT_VNPAY_SUCCESS,
+
+    TEST_RESULT_AVAILABLE,
+
+    SYSTEM_NOTIFICATION
+}

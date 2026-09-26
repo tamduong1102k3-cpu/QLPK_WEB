@@ -1,0 +1,31 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+*.pem
+*.key
+firebase-service-account.json
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Java
+target/
+*.class
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Log
+*.log
+logs/
+compile_out.txt

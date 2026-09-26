@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: qlpk-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-dbphongkham8}
+      MYSQL_USER: ${MYSQL_USER:-qlpk_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-qlpk_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: qlpk-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-dbphongkham8}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-qlpk_user}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-qlpk_password}
+      JWT_SECRET: ${JWT_SECRET:-VXNlclNlY3JldEtleUZvclBKU1Rva2VuU2lnbmluZ1RoaXMgSXMgVmVyeVNlY3VyZUtleUZvckJDUElOVFNlY3JldEtleUlOU05JSklOSU5JTkRISVNGSU5JU0hGSU5HU0hGSU5HU0hGSU5H}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-86400000}
+      VNPAY_TMN_CODE: ${VNPAY_TMN_CODE:-1YNCE3P2}
+      VNPAY_HASH_SECRET: ${VNPAY_HASH_SECRET:-0JGDU4BDI99U47EJWYPQ9ND4MLO6O31J}
+      VNPAY_PAY_URL: ${VNPAY_PAY_URL:-https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      VNPAY_RETURN_URL: ${VNPAY_RETURN_URL:-http://localhost:8080/api/payment/vnpay/return}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - backend_backups:/app/backups
+
+volumes:
+  mysql_data:
+  backend_backups:
