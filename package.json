@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "puppeteer": "^25.2.1"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server-memory": "^2026.8.31",
+    "jwt-decode": "^4.0.0"
+  }
+}
