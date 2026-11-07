@@ -1,0 +1,64 @@
+# ==============================
+# Backend (Spring Boot)
+# ==============================
+backend/target/
+*.class
+*.log
+backend/.env
+
+# ==============================
+# Frontend (React Vite)
+# ==============================
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+frontend/public/uploads/
+
+# ==============================
+# Files that may contain secrets
+# ==============================
+*service-account*.json
+*firebase*config*.json
+*.pem
+*.key
+
+# ==============================
+# Flutter (kept in a separate repository)
+# ==============================
+lib/
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.yaml
+pubspec.lock
+analysis_options.yaml
+
+# ==============================
+# IDE & OS
+# ==============================
+.vscode/
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+_tmp_*
+.kilo/
+
+# Keep preserved nested Git metadata out of the parent repository.
+**/.git_disabled*/
+
+# Local tooling and scratch output
+.codegraph/
+.vite/
+/front
+/src/
+.env
+.env.*
+!backend/.env.example
+compile*.txt
+final.txt
+response.json
+temp.txt

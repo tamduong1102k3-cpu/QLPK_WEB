@@ -1,0 +1,11 @@
+target/
+.mvn/
+.mvn/wrapper/maven-wrapper.jar
+*.log
+backups/
+.git/
+.gitignore
+.gitattributes
+README.md
+TestLombok.java
+TestLombok.class
