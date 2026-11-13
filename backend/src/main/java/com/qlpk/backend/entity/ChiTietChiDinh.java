@@ -19,6 +19,12 @@ public class ChiTietChiDinh {
     @Column(name = "ma_phieu_chi_dinh")
     private Integer maPhieuChiDinh;
 
+    @Column(name = "ma_bac_si")
+    private Integer maBacSi;
+
+    @Column(name = "nguon_tao", nullable = false, length = 30)
+    private String nguonTao = "KHONG_XAC_DINH";
+
     @Column(name = "ma_dich_vu")
     private Integer maDichVu;
 

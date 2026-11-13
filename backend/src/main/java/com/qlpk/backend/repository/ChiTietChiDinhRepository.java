@@ -3,6 +3,7 @@ package com.qlpk.backend.repository;
 import com.qlpk.backend.entity.ChiTietChiDinh;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
+
 import java.util.List;
 
 @Repository

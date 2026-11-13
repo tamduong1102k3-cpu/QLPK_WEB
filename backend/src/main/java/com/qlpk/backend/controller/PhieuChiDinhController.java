@@ -3,16 +3,23 @@ package com.qlpk.backend.controller;
 import com.qlpk.backend.config.JwtUtils;
 import com.qlpk.backend.dto.ReferralRequest;
 import com.qlpk.backend.entity.ChiTietChiDinh;
+import com.qlpk.backend.entity.NhanVien;
 import com.qlpk.backend.entity.PhieuChiDinh;
 import com.qlpk.backend.service.BangPhanCongCaLamService;
 import com.qlpk.backend.service.CloudinaryService;
 import com.qlpk.backend.service.PhieuChiDinhService;
+import com.qlpk.backend.service.ClsResultAuthorizationService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,6 +36,9 @@ public class PhieuChiDinhController {
 
     @Autowired
     private BangPhanCongCaLamService bangPhanCongService;
+
+    @Autowired
+    private ClsResultAuthorizationService clsResultAuthorizationService;
 
     @GetMapping("/pending-tests")
     public ResponseEntity<?> getPendingTests(@RequestParam(value = "maChuyenKhoa", required = false) Integer maChuyenKhoa,
@@ -98,11 +108,52 @@ public class PhieuChiDinhController {
         return jwtUtils.getMaNhanVienFromToken(header.substring(7));
     }
 
+    private NhanVien getAuthenticatedClsDoctor() {
+        return clsResultAuthorizationService.requireClsDoctor();
+    }
+
+    private ResponseEntity<?> responseForAuthorizationError(ResponseStatusException e) {
+        String message = e.getReason() != null ? e.getReason() : "Không được phép thực hiện thao tác";
+        return ResponseEntity.status(e.getStatusCode()).body(Map.of("message", message));
+    }
+
+    @GetMapping("/doctor/cls/review-queue")
+    public ResponseEntity<?> getDoctorClsReviewQueue(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) String trangThaiDv,
+            @RequestParam(required = false) String trangThaiKq,
+            @RequestParam(required = false) Integer maDichVu,
+            @PageableDefault(size = 20) Pageable pageable) {
+        NhanVien doctor = getAuthenticatedClsDoctor();
+        try {
+            return ResponseEntity.ok(phieuChiDinhService.getDoctorClsReviewQueue(
+                    doctor.getMaNhanVien(), doctor.getChuyenKhoa(), fromDate, toDate,
+                    trangThaiDv, trangThaiKq, maDichVu, pageable.getPageNumber(), pageable.getPageSize()));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/doctor/claim-result/{detailId}")
+    public ResponseEntity<?> claimDoctorResult(@PathVariable Integer detailId) {
+        try {
+            Map<String, Object> result = phieuChiDinhService.claimDoctorResult(detailId);
+            return Boolean.FALSE.equals(result.get("claimed"))
+                    ? ResponseEntity.status(409).body(result)
+                    : ResponseEntity.ok(result);
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
+        }
+    }
+
     @PostMapping("/submit-result")
     public ResponseEntity<?> submitTestResult(@RequestBody Map<String, Object> body) {
         try {
             phieuChiDinhService.submitTestResult(body);
             return ResponseEntity.ok(Map.of("message", "Cập nhật kết quả thành công!"));
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
         } catch (Exception e) {
             e.printStackTrace();
             if (e.getMessage().contains("Thiếu thông tin") || e.getMessage().contains("Không tìm thấy")) {
@@ -117,6 +168,8 @@ public class PhieuChiDinhController {
         try {
             PhieuChiDinh savedPk = phieuChiDinhService.create(request);
             return ResponseEntity.ok(savedPk);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(Map.of("message", "Lỗi: " + e.getMessage()));
         }
@@ -139,16 +192,24 @@ public class PhieuChiDinhController {
 
     @GetMapping("/result-cdha/{detailId}")
     public ResponseEntity<?> getCdhaResult(@PathVariable Integer detailId) {
-        Object result = phieuChiDinhService.getCdhaResult(detailId);
-        if (result != null) return ResponseEntity.ok(result);
-        return ResponseEntity.ok().build();
+        try {
+            Object result = phieuChiDinhService.getCdhaResult(detailId);
+            if (result != null) return ResponseEntity.ok(result);
+            return ResponseEntity.ok().build();
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
+        }
     }
 
     @GetMapping("/result-xet-nghiem/{detailId}")
     public ResponseEntity<?> getXetNhiemResult(@PathVariable Integer detailId) {
-        Object result = phieuChiDinhService.getXetNhiemResult(detailId);
-        if (result != null) return ResponseEntity.ok(result);
-        return ResponseEntity.ok().build();
+        try {
+            Object result = phieuChiDinhService.getXetNhiemResult(detailId);
+            if (result != null) return ResponseEntity.ok(result);
+            return ResponseEntity.ok().build();
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
+        }
     }
 
     @GetMapping("/phieu-kham/{maPhieuKham}/result-xet-nghiem")
@@ -161,6 +222,8 @@ public class PhieuChiDinhController {
         try {
             phieuChiDinhService.approveTestResult(id, body);
             return ResponseEntity.ok(Map.of("message", "Duyệt kết quả xét nghiệm thành công!"));
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
         } catch (Exception e) {
             e.printStackTrace();
             if (e.getMessage().contains("Không tìm thấy")) return ResponseEntity.notFound().build();
@@ -213,6 +276,8 @@ public class PhieuChiDinhController {
         try {
             phieuChiDinhService.rejectTestResult(id, body);
             return ResponseEntity.ok(Map.of("message", "Đã từ chối kết quả xét nghiệm"));
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
         } catch (Exception e) {
             e.printStackTrace();
             if (e.getMessage().contains("Vui lòng nhập")) return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
@@ -236,6 +301,8 @@ public class PhieuChiDinhController {
         try {
             phieuChiDinhService.approveCdhaResult(detailId, body);
             return ResponseEntity.ok(Map.of("message", "Duyệt kết quả CĐHA thành công!"));
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(Map.of("message", "Lỗi: " + e.getMessage()));
@@ -247,6 +314,8 @@ public class PhieuChiDinhController {
         try {
             phieuChiDinhService.rejectCdhaResult(detailId, body);
             return ResponseEntity.ok(Map.of("message", "Đã từ chối kết quả CĐHA"));
+        } catch (ResponseStatusException e) {
+            return responseForAuthorizationError(e);
         } catch (Exception e) {
             e.printStackTrace();
             if (e.getMessage().contains("Vui lòng nhập")) return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

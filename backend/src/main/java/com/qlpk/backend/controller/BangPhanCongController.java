@@ -2,6 +2,7 @@ package com.qlpk.backend.controller;
 
 import com.qlpk.backend.dto.BulkDefaultShiftRequest;
 import com.qlpk.backend.dto.BulkDefaultShiftResult;
+import com.qlpk.backend.dto.ClsRoomOptionDTO;
 import com.qlpk.backend.dto.NhanCaMacDinhDenCuoiNamRequest;
 import com.qlpk.backend.entity.BangPhanCongCaLam;
 import com.qlpk.backend.service.BangPhanCongCaLamService;
@@ -161,6 +162,32 @@ public class BangPhanCongController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.status(500).body(Collections.emptyList());
+        }
+    }
+
+    @GetMapping("/phong-cls")
+    public ResponseEntity<?> getAvailableClsRooms(@RequestParam Integer maDichVu) {
+        try {
+            List<ClsRoomOptionDTO> rooms = service.getAvailableClsRooms(maDichVu);
+            return ResponseEntity.ok(rooms);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Không thể lấy phòng CLS đang có kỹ thuật viên trực", e);
+            return ResponseEntity.status(500).body(Map.of("message", "Không thể lấy phòng CLS đang trực"));
+        }
+    }
+
+    @GetMapping("/phong-cls-chi-dinh")
+    public ResponseEntity<?> getAvailableClsRoomsForReferral(@RequestParam Integer maDichVu) {
+        try {
+            List<ClsRoomOptionDTO> rooms = service.getAvailableClsRoomsForReferral(maDichVu);
+            return ResponseEntity.ok(rooms);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Không thể lấy phòng CLS có kỹ thuật viên đang trực cho chỉ định", e);
+            return ResponseEntity.status(500).body(Map.of("message", "Không thể lấy phòng CLS đang trực"));
         }
     }
 

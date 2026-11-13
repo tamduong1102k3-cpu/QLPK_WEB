@@ -43,10 +43,13 @@ public interface HoaDonRepository extends JpaRepository<HoaDon, Integer> {
         SELECT CAST(h.ngayThanhToan AS date), SUM(h.tongTien)
         FROM HoaDon h
         WHERE h.ngayThanhToan >= :since
+          AND h.ngayThanhToan < :end
         GROUP BY CAST(h.ngayThanhToan AS date)
         ORDER BY CAST(h.ngayThanhToan AS date) ASC
     """)
-    List<Object[]> thongKeDoanhThu7Ngay(@Param("since") java.time.LocalDateTime since);
+    List<Object[]> thongKeDoanhThu7Ngay(
+            @Param("since") java.time.LocalDateTime since,
+            @Param("end") java.time.LocalDateTime end);
 
     /** Lấy danh sách hóa đơn kèm thông tin bệnh nhân chi tiết (tất cả trạng thái - cho lịch sử thu ngân) */
     @Query(value = "SELECT h.ma_hoa_don as maHoaDon, h.ma_phieu_kham as maPhieuKham, h.tong_tien as tongTien, " +

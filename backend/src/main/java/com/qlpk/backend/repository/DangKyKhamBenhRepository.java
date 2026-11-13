@@ -39,11 +39,20 @@ public interface DangKyKhamBenhRepository extends JpaRepository<DangKyKhamBenh, 
                    "JOIN chuyen_khoa c ON d.ma_chuyen_khoa = c.ma_chuyen_khoa " +
                    "LEFT JOIN phong_chuc_nang p ON d.ma_phong = p.ma_phong " +
                    "WHERE d.thoi_gian_dang_ky >= :startOfDay AND d.thoi_gian_dang_ky < :endOfDay " +
+                   "AND (:maBacSi IS NULL OR d.ma_bac_si = :maBacSi) " +
                    "ORDER BY d.so_thu_tu ASC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findTodayRegistrationsDetailed(@Param("startOfDay") LocalDateTime startOfDay, @Param("endOfDay") LocalDateTime endOfDay);
+    List<java.util.Map<String, Object>> findTodayRegistrationsDetailed(
+                   @Param("startOfDay") LocalDateTime startOfDay,
+                   @Param("endOfDay") LocalDateTime endOfDay,
+                   @Param("maBacSi") Integer maBacSi);
 
     /** Tìm lượt đăng ký khám bệnh theo mã phiếu khám */
     Optional<DangKyKhamBenh> findByMaPhieuKham(Integer maPhieuKham);
+    boolean existsByMaPhieuKhamAndMaDichVuAndMaBacSi(
+            Integer maPhieuKham, Integer maDichVu, Integer maBacSi);
+
+    /** Tìm tất cả lượt đăng ký gắn với phiếu khám để xác minh nguồn duy nhất. */
+    List<DangKyKhamBenh> findAllByMaPhieuKham(Integer maPhieuKham);
 
     /** Tìm các lượt đăng ký khám bệnh trong ngày kèm thông tin bệnh nhân và hỗ trợ tìm kiếm theo tên, CCCD, mã phiếu khám hoặc chuyên khoa */
     @Query(value = "SELECT d.id as id, d.ma_benh_nhan as maBenhNhan, d.so_thu_tu as soThuTu, b.ho_ten as hoTen, " +
@@ -58,6 +67,7 @@ public interface DangKyKhamBenhRepository extends JpaRepository<DangKyKhamBenh, 
                    "JOIN chuyen_khoa c ON d.ma_chuyen_khoa = c.ma_chuyen_khoa " +
                    "LEFT JOIN phong_chuc_nang p ON d.ma_phong = p.ma_phong " +
                    "WHERE d.thoi_gian_dang_ky >= :startOfDay AND d.thoi_gian_dang_ky < :endOfDay " +
+                   "AND (:maBacSi IS NULL OR d.ma_bac_si = :maBacSi) " +
                    "AND (:keyword IS NULL OR :keyword = '' " +
                    "     OR b.ho_ten LIKE CONCAT('%', :keyword, '%') " +
                    "     OR b.cccd LIKE CONCAT('%', :keyword, '%') " +
@@ -67,11 +77,22 @@ public interface DangKyKhamBenhRepository extends JpaRepository<DangKyKhamBenh, 
     List<java.util.Map<String, Object>> findTodayRegistrationsDetailedWithSearch(
                    @Param("startOfDay") LocalDateTime startOfDay,
                    @Param("endOfDay") LocalDateTime endOfDay,
-                   @Param("keyword") String keyword);
+                   @Param("keyword") String keyword,
+                   @Param("maBacSi") Integer maBacSi);
 
     /** Tìm số thứ tự lớn nhất trong ngày của một phòng để cấp số thứ tự tiếp theo */
     @Query("SELECT COALESCE(MAX(d.soThuTu), 0) FROM DangKyKhamBenh d WHERE d.thoiGianDangKy >= :startOfDay AND d.thoiGianDangKy < :endOfDay AND d.maPhong = :maPhong")
     Integer findMaxSoThuTuByPhong(@Param("startOfDay") LocalDateTime startOfDay, @Param("endOfDay") LocalDateTime endOfDay, @Param("maPhong") Integer maPhong);
+
+    @Query("SELECT d.maPhong, COUNT(d) FROM DangKyKhamBenh d " +
+           "WHERE d.thoiGianDangKy >= :startOfDay AND d.thoiGianDangKy < :endOfDay " +
+           "AND d.maPhong IN :maPhongs AND d.trangThai IN :statuses " +
+           "GROUP BY d.maPhong")
+    List<Object[]> countWaitingByPhong(
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay,
+            @Param("maPhongs") List<Integer> maPhongs,
+            @Param("statuses") List<String> statuses);
 
     /** Cập nhật trạng thái đăng ký khám bệnh, chỉ khi trạng thái hiện tại khớp với trạng thái mong đợi */
     @Modifying

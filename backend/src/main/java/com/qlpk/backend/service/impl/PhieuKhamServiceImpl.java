@@ -5,14 +5,19 @@ import com.qlpk.backend.entity.*;
 import com.qlpk.backend.payment.WebSocketPublisher;
 import com.qlpk.backend.repository.*;
 import com.qlpk.backend.service.PhieuKhamService;
+import com.qlpk.backend.util.TimeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Lớp triển khai nghiệp vụ phiếu khám: tiếp đón bệnh nhân, phân luồng trạng thái
@@ -40,6 +45,9 @@ public class PhieuKhamServiceImpl
 
     @Autowired
     private DichVuRepository dichVuRepository;
+
+    @Autowired
+    private NhanVienRepository nhanVienRepository;
 
     @Autowired
     private KetQuaXetNghiemRepository ketQuaXetNghiemRepository;
@@ -84,8 +92,11 @@ public class PhieuKhamServiceImpl
      */
     @Override
 public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
-    return repository.findAssistantHistory(maChuyenKhoa);
-}
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return repository.findAssistantHistory(maChuyenKhoa, start, end);
+    }
 
     /**
      * Tạo phiếu khám mới.
@@ -111,11 +122,13 @@ public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
         }
 
         if (entity.getMaBenhNhan() != null && entity.getMaChuyenKhoa() != null) {
+            LocalDateTime start = entity.getNgayKham().toLocalDate().atStartOfDay();
+            LocalDateTime end = start.plusDays(1);
             List<PhieuKham> existing = repository.findByMaBenhNhanAndMaChuyenKhoaAndNgayKhamBetween(
                 entity.getMaBenhNhan(),
                 entity.getMaChuyenKhoa(),
-                entity.getNgayKham().withHour(0).withMinute(0).withSecond(0),
-                entity.getNgayKham().withHour(23).withMinute(59).withSecond(59)
+                start,
+                end
             );
             if (existing != null && !existing.isEmpty()) {
                 PhieuKham unfinished = null;
@@ -171,8 +184,9 @@ public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
      */
     @Override
     public List<PhieuKham> getToday() {
-        LocalDateTime start = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0);
-        LocalDateTime end = LocalDateTime.now().withHour(23).withMinute(59).withSecond(59);
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
         return repository.findByNgayKhamBetween(start, end);
     }
 
@@ -199,9 +213,11 @@ public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
         }
         String tenCK = ck.getTenChuyenKhoa().toLowerCase();
 
+        LocalDate today = TimeUtil.today();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.plusDays(1).atStartOfDay();
+
         if (ck.getSoLuongToiDa() != null && ck.getSoLuongToiDa() > 0) {
-            LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-            LocalDateTime endOfDay = startOfDay.plusDays(1);
             long todayCount = dangKyRepository.countTodayRegistrationsByChuyenKhoa(startOfDay, endOfDay, request.getMaChuyenKhoa());
             if (todayCount >= ck.getSoLuongToiDa()) {
                 throw new Exception("Chuyên khoa '" + ck.getTenChuyenKhoa() + "' đã đạt số lượng tối đa hôm nay (" + ck.getSoLuongToiDa() + "). Vui lòng chọn chuyên khoa khác hoặc quay lại vào ngày mai.");
@@ -222,8 +238,6 @@ public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
         }
         dk.setGhiChu(note);
 
-        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
-        LocalDateTime endOfDay = startOfDay.plusDays(1);
         long count = dangKyRepository.countTodayRegistrations(startOfDay, endOfDay);
         dk.setSoThuTu((int)count + 1);
 
@@ -296,7 +310,10 @@ public List<Map<String, Object>> getAssistantHistory(Integer maChuyenKhoa) {
      */
     @Override
     public List<Map<String, Object>> getHistory(Integer maBacSi) {
-        return repository.findHistoryDetailed(maBacSi);
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return repository.findHistoryDetailed(maBacSi, start, end);
     }
 
 
@@ -389,7 +406,10 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
      */
     @Override
     public List<Map<String, Object>> getCompletedPatientsToday() {
-        return repository.findCompletedPatientsToday();
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return repository.findCompletedPatientsToday(start, end);
     }
 
     /**
@@ -400,7 +420,10 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
      */
     @Override
     public List<Map<String, Object>> getCompletedPatientsTodayWithSearch(String keyword) {
-        return repository.findCompletedPatientsTodayWithSearch(keyword);
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return repository.findCompletedPatientsTodayWithSearch(keyword, start, end);
     }
 
     /**
@@ -411,7 +434,48 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
      */
     @Override
     public List<Map<String, Object>> getHistoryByChuyenKhoaAllDays(Integer maChuyenKhoa) {
-        return repository.findHistoryByChuyenKhoaAllDays(maChuyenKhoa);
+        List<Map<String, Object>> history = repository.findHistoryByChuyenKhoaAllDays(maChuyenKhoa);
+        Map<Integer, List<Map<String, Object>>> clsStatusesByVisit = new HashMap<>();
+        for (Map<String, Object> status : repository.findHistoryClsStatusesByChuyenKhoa(maChuyenKhoa)) {
+            Integer maPhieuKham = ((Number) status.get("maPhieuKham")).intValue();
+            clsStatusesByVisit.computeIfAbsent(maPhieuKham, ignored -> new ArrayList<>()).add(status);
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>(history.size());
+        for (Map<String, Object> item : history) {
+            Map<String, Object> historyItem = new HashMap<>(item);
+            Integer maPhieuKham = ((Number) item.get("maPhieuKham")).intValue();
+            List<Map<String, Object>> clsStatuses = clsStatusesByVisit.get(maPhieuKham);
+            historyItem.put("trangThaiDichVu", resolveHistoryClsStatus(clsStatuses));
+            result.add(historyItem);
+        }
+        return result;
+    }
+
+    private String resolveHistoryClsStatus(List<Map<String, Object>> statuses) {
+        if (statuses == null || statuses.isEmpty()) return null;
+
+        boolean hasWaitingResult = false;
+        boolean hasUnperformedService = false;
+        boolean hasUnknownStatus = false;
+        for (Map<String, Object> status : statuses) {
+            String serviceStatus = Objects.toString(status.get("trangThaiDv"), null);
+            String resultStatus = Objects.toString(status.get("trangThaiKq"), null);
+
+            if ("TU_CHOI".equals(resultStatus)) return "TU_CHOI";
+            if ("CHO_DUYET".equals(resultStatus)) {
+                hasWaitingResult = true;
+            } else if ("CHUA_THUC_HIEN".equals(serviceStatus) && resultStatus == null) {
+                hasUnperformedService = true;
+            } else if (!("DA_THUC_HIEN".equals(serviceStatus) && "DA_DUYET".equals(resultStatus))) {
+                hasUnknownStatus = true;
+            }
+        }
+
+        if (hasUnperformedService) return "CHUA_THUC_HIEN";
+        if (hasWaitingResult) return "CHO_DUYET";
+        if (hasUnknownStatus) return "KHONG_XAC_DINH";
+        return "DA_DUYET";
     }
 
     /**
@@ -482,6 +546,41 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
             throw new Exception("Phiếu khám này không có dịch vụ CLS");
         }
 
+        DangKyKhamBenh dk;
+        try {
+            dk = dangKyRepository.findByMaPhieuKham(maPhieuKham)
+                    .orElseThrow(() -> new Exception("Không tìm thấy đăng ký nguồn cho phiếu khám CLS"));
+        } catch (IncorrectResultSizeDataAccessException e) {
+            throw new Exception("Có nhiều đăng ký nguồn cho phiếu khám CLS", e);
+        }
+        if (dk.getMaDichVu() == null || !dk.getMaDichVu().equals(pk.getMaDichVu())) {
+            throw new Exception("Dịch vụ trên đăng ký nguồn không khớp với phiếu khám CLS");
+        }
+
+        DichVu dv = dichVuRepository.findById(pk.getMaDichVu())
+                .orElseThrow(() -> new Exception("Không tìm thấy dịch vụ CLS"));
+        Integer chuyenKhoaCls;
+        if ("CLS_XET_NGHIEM".equals(dv.getLoaiDichVu())) {
+            chuyenKhoaCls = 7;
+        } else if ("CLS_CHAN_DOAN_HINH_ANH".equals(dv.getLoaiDichVu())) {
+            chuyenKhoaCls = 12;
+        } else {
+            throw new Exception("Dịch vụ của phiếu khám không thuộc CLS");
+        }
+        if (!chuyenKhoaCls.equals(dv.getMaChuyenKhoa())
+                || !chuyenKhoaCls.equals(dk.getMaChuyenKhoa())) {
+            throw new Exception("Chuyên khoa dịch vụ CLS không khớp với đăng ký nguồn");
+        }
+        if (dk.getMaBacSi() == null) {
+            throw new Exception("Đăng ký CLS trực tiếp chưa có bác sĩ phụ trách");
+        }
+        NhanVien bacSi = nhanVienRepository.findById(dk.getMaBacSi())
+                .orElseThrow(() -> new Exception("Không tìm thấy bác sĩ CLS đã chọn trên đăng ký"));
+        if (!"Bác sĩ".equals(bacSi.getChucVu())
+                || !chuyenKhoaCls.equals(bacSi.getChuyenKhoa())) {
+            throw new Exception("Bác sĩ trên đăng ký không phù hợp với chuyên khoa dịch vụ CLS");
+        }
+
         TiepNhanCls tiepNhan = new TiepNhanCls();
         tiepNhan.setMaPhieuKham(maPhieuKham);
         tiepNhan.setLyDoDen(lyDoDen);
@@ -494,8 +593,7 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
             throw new Exception("Phiếu chỉ định đã được tạo trước đó cho phiếu khám này");
         }
 
-        DichVu dv = dichVuRepository.findById(pk.getMaDichVu()).orElse(null);
-        Double donGia = (dv != null && dv.getDonGia() != null) ? dv.getDonGia().doubleValue() : 0.0;
+        Double donGia = dv.getDonGia() != null ? dv.getDonGia().doubleValue() : 0.0;
 
         PhieuChiDinh pcd = new PhieuChiDinh();
         pcd.setMaPhieuKham(maPhieuKham);
@@ -507,6 +605,8 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
         ChiTietChiDinh ct = new ChiTietChiDinh();
         ct.setMaPhieuChiDinh(savedPcd.getMaPhieuChiDinh());
         ct.setMaDichVu(pk.getMaDichVu());
+        ct.setMaBacSi(dk.getMaBacSi());
+        ct.setNguonTao("DANG_KY_TRUC_TIEP");
         ct.setSoLuong(1);
         ct.setDonGia(donGia);
         ct.setTrangThaiDv("CHUA_THUC_HIEN");
@@ -516,10 +616,11 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
         repository.save(pk);
         webSocketPublisher.publishPhieuKhamChange("UPDATED", pk);
 
-        dangKyRepository.findByMaPhieuKham(maPhieuKham).ifPresent(dk -> {
-            dk.setTrangThai("CHO_CLS");
-            dangKyRepository.save(dk);
-            webSocketPublisher.publishDangKyKhamChange("UPDATED", dk.getId(), dk.getTrangThai());
+        dangKyRepository.findByMaPhieuKham(maPhieuKham).ifPresent(registration -> {
+            registration.setTrangThai("CHO_CLS");
+            dangKyRepository.save(registration);
+            webSocketPublisher.publishDangKyKhamChange(
+                    "UPDATED", registration.getId(), registration.getTrangThai());
         });
 
         return Map.of(
@@ -567,6 +668,8 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
         ChiTietChiDinh ct = new ChiTietChiDinh();
         ct.setMaPhieuChiDinh(savedPcd.getMaPhieuChiDinh());
         ct.setMaDichVu(pk.getMaDichVu());
+        ct.setMaBacSi(null);
+        ct.setNguonTao("KHONG_XAC_DINH");
         ct.setSoLuong(1);
         ct.setDonGia(donGia);
         ct.setTrangThaiDv("CHUA_THUC_HIEN");
@@ -597,7 +700,10 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
      */
     @Override
     public List<Map<String, Object>> getPendingClsConfirmation(Integer maChuyenKhoa) {
-        return repository.findPendingClsConfirmation(maChuyenKhoa);
+        LocalDate today = TimeUtil.today();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        return repository.findPendingClsConfirmation(maChuyenKhoa, start, end);
     }
 
     /**
@@ -624,7 +730,8 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
 
             for (ChiTietChiDinh detail : details) {
                 if ("DA_THUC_HIEN".equals(detail.getTrangThaiDv())) {
-                    var kqxnOpt = ketQuaXetNghiemRepository.findByMaChiTietChiDinh(detail.getId());
+                    var kqxnOpt = ketQuaXetNghiemRepository
+                            .findFirstByMaChiTietChiDinhOrderByNgayThucHienDescIdDesc(detail.getId());
                     if (kqxnOpt.isPresent() && "DA_DUYET".equals(kqxnOpt.get().getTrangThai())) {
                         String tenDv = dichVuRepository.findById(detail.getMaDichVu())
                                 .map(DichVu::getTenDichVu).orElse("Dịch vụ xét nghiệm");
@@ -636,7 +743,8 @@ public void updateToWaitingForDoctor(Integer maPhieuKham) throws Exception {
                         continue;
                     }
 
-                    var kqcdhaOpt = ketQuaCdhaRepository.findByIdChiTietChiDinh(detail.getId());
+                    var kqcdhaOpt = ketQuaCdhaRepository
+                            .findFirstByIdChiTietChiDinhOrderByNgayThucHienDescIdDesc(detail.getId());
                     if (kqcdhaOpt.isPresent() && "DA_DUYET".equals(kqcdhaOpt.get().getTrangThai())) {
                         String tenDv = dichVuRepository.findById(detail.getMaDichVu())
                                 .map(DichVu::getTenDichVu).orElse("Dịch vụ CĐHA");

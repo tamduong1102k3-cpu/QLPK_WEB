@@ -42,9 +42,13 @@ public class DangKyKhamBenhController {
     }
 
     @PostMapping
-    public ResponseEntity<DangKyKhamBenh> create(@RequestBody CreateDangKyKhamBenhRequest request) {
-        DangKyKhamBenh created = service.create(request);
-        return ResponseEntity.ok(created);
+    public ResponseEntity<?> create(@RequestBody CreateDangKyKhamBenhRequest request) {
+        try {
+            DangKyKhamBenh created = service.create(request);
+            return ResponseEntity.ok(created);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
@@ -67,26 +71,34 @@ public class DangKyKhamBenhController {
     public ResponseEntity<?> getToday(
             @RequestParam(value = "keyword", required = false, defaultValue = "") String keyword,
             HttpServletRequest request) {
-        Integer maNhanVien = getMaNhanVienFromRequest(request);
+        String header = request.getHeader("Authorization");
+        String token = header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
+        Integer maNhanVien = token != null ? jwtUtils.getMaNhanVienFromToken(token) : null;
         if (maNhanVien == null) {
             return ResponseEntity.status(401).body(Map.of("message", "Chưa xác thực"));
         }
 
-        final Integer maPhongTruc;
-        try {
-            maPhongTruc = bangPhanCongService.getPhongDangTrucCuaUser(maNhanVien);
-        } catch (RuntimeException e) {
-            return ResponseEntity.ok(List.of());
-        }
+        String role = jwtUtils.getRoleFromToken(token);
+        boolean isBacSi = role != null && (role.equals("BAC_SI") || role.startsWith("BAC_SI_"));
 
         List<Map<String, Object>> list;
         if (keyword != null && !keyword.trim().isEmpty()) {
-            list = service.getTodayRegistrationsDetailedWithSearch(keyword.trim());
+            list = service.getTodayRegistrationsDetailedWithSearch(
+                    keyword.trim(), isBacSi ? maNhanVien : null);
         } else {
-            list = service.getTodayRegistrationsDetailed();
+            list = service.getTodayRegistrationsDetailed(isBacSi ? maNhanVien : null);
         }
 
-        if (maPhongTruc != null) {
+        if (!isBacSi) {
+            final Integer maPhongTruc;
+            try {
+                maPhongTruc = bangPhanCongService.getPhongDangTrucCuaUser(maNhanVien);
+            } catch (RuntimeException e) {
+                return ResponseEntity.ok(List.of());
+            }
+            if (maPhongTruc == null) {
+                return ResponseEntity.ok(list);
+            }
             list = list.stream()
                 .filter(row -> {
                     Object v = row.get("maPhong");
@@ -96,12 +108,6 @@ public class DangKyKhamBenhController {
                 .collect(Collectors.toList());
         }
         return ResponseEntity.ok(list);
-    }
-
-    private Integer getMaNhanVienFromRequest(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
-        if (header == null || !header.startsWith("Bearer ")) return null;
-        return jwtUtils.getMaNhanVienFromToken(header.substring(7));
     }
 
     @PutMapping("/{id}/status")

@@ -2,6 +2,7 @@ package com.qlpk.backend.service.impl;
 
 import com.qlpk.backend.dto.BulkDefaultShiftRequest;
 import com.qlpk.backend.dto.BulkDefaultShiftResult;
+import com.qlpk.backend.dto.ClsRoomOptionDTO;
 import com.qlpk.backend.dto.LichThangDTO;
 import com.qlpk.backend.dto.NgayCaLamDTO;
 import com.qlpk.backend.dto.NhanCaMacDinhDenCuoiNamRequest;
@@ -13,10 +14,14 @@ import com.qlpk.backend.entity.HanhDongCaLam;
 import com.qlpk.backend.entity.KieuPhanCong;
 import com.qlpk.backend.entity.LichKham;
 import com.qlpk.backend.entity.PhongChucNang;
+import com.qlpk.backend.entity.TaiKhoan;
 import com.qlpk.backend.repository.BangPhanCongCaLamRepository;
 import com.qlpk.backend.repository.CaLamRepository;
+import com.qlpk.backend.repository.DangKyKhamBenhRepository;
+import com.qlpk.backend.repository.DichVuRepository;
 import com.qlpk.backend.repository.LichKhamRepository;
 import com.qlpk.backend.repository.PhongChucNangRepository;
+import com.qlpk.backend.repository.TaiKhoanRepository;
 import com.qlpk.backend.repository.TaiKhoanBenhNhanRepository;
 import com.qlpk.backend.service.BangPhanCongCaLamService;
 import com.qlpk.backend.service.LichKhamService;
@@ -30,10 +35,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.HashMap;
 import java.util.List;
@@ -71,6 +78,12 @@ public class BangPhanCongCaLamServiceImpl implements BangPhanCongCaLamService {
     private CaLamRepository caLamRepository;
 
     @Autowired
+    private DichVuRepository dichVuRepository;
+
+    @Autowired
+    private DangKyKhamBenhRepository dangKyKhamBenhRepository;
+
+    @Autowired
     private LichKhamRepository lichKhamRepository;
 
     @Autowired
@@ -84,6 +97,9 @@ public class BangPhanCongCaLamServiceImpl implements BangPhanCongCaLamService {
 
     @Autowired
     private PhongChucNangRepository phongChucNangRepository;
+
+    @Autowired
+    private TaiKhoanRepository taiKhoanRepository;
 
     @Override
     public List<BangPhanCongCaLam> getAll() {
@@ -573,6 +589,138 @@ public class BangPhanCongCaLamServiceImpl implements BangPhanCongCaLamService {
         // Row NGHI_PHEP ngày hôm nay được giữ để FE cảnh báo "BS đang nghỉ".
         populateTenPhong(allRows);
         return allRows;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClsRoomOptionDTO> getAvailableClsRooms(Integer maDichVu) {
+        return findAvailableClsRooms(maDichVu, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClsRoomOptionDTO> getAvailableClsRoomsForReferral(Integer maDichVu) {
+        return findAvailableClsRooms(maDichVu, true);
+    }
+
+    private List<ClsRoomOptionDTO> findAvailableClsRooms(Integer maDichVu, boolean requireClsTechnician) {
+        var dichVu = dichVuRepository.findById(maDichVu)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy dịch vụ"));
+        Integer maChucVu = getTechnicianPosition(dichVu.getLoaiDichVu());
+        Integer expectedSpecialty = getExpectedSpecialty(dichVu.getLoaiDichVu());
+        if (maChucVu == null || expectedSpecialty == null
+                || !expectedSpecialty.equals(dichVu.getMaChuyenKhoa())) {
+            return new ArrayList<>();
+        }
+
+        List<PhongChucNang> rooms = phongChucNangRepository.findByMaChuyenKhoaAndMaChucVu(
+                dichVu.getMaChuyenKhoa(), maChucVu);
+        if (requireClsTechnician) {
+            rooms = rooms.stream()
+                    .filter(room -> dichVu.getLoaiDichVu().equals(room.getLoaiPhong()))
+                    .toList();
+        }
+        if (rooms.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Integer> roomIds = rooms.stream()
+                .map(PhongChucNang::getMaPhong)
+                .toList();
+        Set<Integer> assignedEmployees = repository.findByPhongIn(roomIds).stream()
+                .map(BangPhanCongCaLam::getMaNhanVien)
+                .collect(Collectors.toSet());
+        if (assignedEmployees.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        if (requireClsTechnician) {
+            String requiredRole = getTechnicianRole(dichVu.getLoaiDichVu());
+            Set<Integer> technicianIds = taiKhoanRepository
+                    .findByMaNhanVienIn(new ArrayList<>(assignedEmployees)).stream()
+                    .filter(account -> isTechnicianForService(account.getVaiTro(), requiredRole))
+                    .map(TaiKhoan::getMaNhanVien)
+                    .collect(Collectors.toSet());
+            assignedEmployees.retainAll(technicianIds);
+            if (assignedEmployees.isEmpty()) {
+                return new ArrayList<>();
+            }
+        }
+
+        Map<Integer, List<BangPhanCongCaLam>> shiftsByEmployee = repository
+                .findByMaNhanVienIn(new ArrayList<>(assignedEmployees)).stream()
+                .collect(Collectors.groupingBy(BangPhanCongCaLam::getMaNhanVien));
+
+        LocalDate today = TimeUtil.today();
+        Set<Integer> roomsWithAssignedTechnician = new HashSet<>();
+        for (List<BangPhanCongCaLam> employeeShifts : shiftsByEmployee.values()) {
+            for (BangPhanCongCaLam shift : resolveScheduleForDay(employeeShifts, today)) {
+                if (shift.getCa() != null && shift.getPhong() != null) {
+                    roomsWithAssignedTechnician.add(shift.getPhong());
+                }
+            }
+        }
+
+        if (roomsWithAssignedTechnician.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        Map<Integer, Long> waitingCounts = new HashMap<>();
+        for (Object[] row : dangKyKhamBenhRepository.countWaitingByPhong(
+                startOfDay,
+                endOfDay,
+                new ArrayList<>(roomsWithAssignedTechnician),
+                List.of("CHO_KHAM", "CHO_BAC_SI", "CHO_CLS"))) {
+            waitingCounts.put((Integer) row[0], ((Number) row[1]).longValue());
+        }
+
+        return rooms.stream()
+                .filter(room -> roomsWithAssignedTechnician.contains(room.getMaPhong()))
+                .map(room -> new ClsRoomOptionDTO(
+                        room.getMaPhong(),
+                        room.getTenPhong(),
+                        room.getSoLuongToiDa(),
+                        waitingCounts.getOrDefault(room.getMaPhong(), 0L)))
+                .sorted(Comparator.comparingLong(ClsRoomOptionDTO::getSoBenhNhanDangCho)
+                        .thenComparing(ClsRoomOptionDTO::getTenPhong,
+                                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(ClsRoomOptionDTO::getMaPhong))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isValidClsRoom(Integer maDichVu, Integer maPhong) {
+        if (maDichVu == null || maPhong == null) {
+            return false;
+        }
+        return getAvailableClsRooms(maDichVu).stream()
+                .anyMatch(room -> maPhong.equals(room.getMaPhong()));
+    }
+
+    private Integer getTechnicianPosition(String loaiDichVu) {
+        if ("CLS_XET_NGHIEM".equals(loaiDichVu)) return 13;
+        if ("CLS_CHAN_DOAN_HINH_ANH".equals(loaiDichVu)) return 15;
+        return null;
+    }
+
+    private String getTechnicianRole(String loaiDichVu) {
+        if ("CLS_XET_NGHIEM".equals(loaiDichVu)) return "KY_THUAT_VIEN_XET_NGHIEM";
+        if ("CLS_CHAN_DOAN_HINH_ANH".equals(loaiDichVu)) return "KY_THUAT_VIEN_CHAN_DOAN_HINH_ANH";
+        return null;
+    }
+
+    private boolean isTechnicianForService(String role, String requiredRole) {
+        return role != null && (role.equals("KY_THUAT_VIEN")
+                || role.equals(requiredRole));
+    }
+
+    private Integer getExpectedSpecialty(String loaiDichVu) {
+        if ("CLS_XET_NGHIEM".equals(loaiDichVu)) return 7;
+        if ("CLS_CHAN_DOAN_HINH_ANH".equals(loaiDichVu)) return 12;
+        return null;
     }
 
     private String getVietnameseDayOfWeek() {

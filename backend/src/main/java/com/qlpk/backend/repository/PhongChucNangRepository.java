@@ -9,4 +9,5 @@ import java.util.List;
 public interface PhongChucNangRepository extends JpaRepository<PhongChucNang, Integer> {
     List<PhongChucNang> findByMaChucVu(Integer maChucVu);
     List<PhongChucNang> findByMaChuyenKhoa(Integer maChuyenKhoa);
+    List<PhongChucNang> findByMaChuyenKhoaAndMaChucVu(Integer maChuyenKhoa, Integer maChucVu);
 }

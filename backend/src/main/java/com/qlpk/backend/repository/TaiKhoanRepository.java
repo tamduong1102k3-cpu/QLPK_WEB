@@ -11,6 +11,7 @@ public interface TaiKhoanRepository extends JpaRepository<TaiKhoan, Integer> {
     TaiKhoan findByUsername(String username);
     TaiKhoan findByEmail(String email);
     TaiKhoan findByMaNhanVien(Integer maNhanVien);
+    List<TaiKhoan> findByMaNhanVienIn(List<Integer> maNhanViens);
     void deleteByMaNhanVien(Integer maNhanVien);
     List<TaiKhoan> findByVaiTro(String vaiTro);
 }

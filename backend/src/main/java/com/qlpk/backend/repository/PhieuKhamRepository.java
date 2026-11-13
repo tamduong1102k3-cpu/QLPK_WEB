@@ -33,11 +33,14 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
     List<Integer> findDistinctYears();
 
     /** Đếm số lịch hẹn/lượt khám hôm nay */
-    @Query("SELECT COUNT(p) FROM PhieuKham p WHERE p.ngayKham >= :start AND p.ngayKham <= :end")
+    @Query("SELECT COUNT(p) FROM PhieuKham p WHERE p.ngayKham >= :start AND p.ngayKham < :end")
     long countByNgayKhamBetween(@Param("start") java.time.LocalDateTime start, @Param("end") java.time.LocalDateTime end);
 
     /** Lấy danh sách phiếu khám trong khoảng thời gian */
-    List<PhieuKham> findByNgayKhamBetween(java.time.LocalDateTime start, java.time.LocalDateTime end);
+    @Query("SELECT p FROM PhieuKham p WHERE p.ngayKham >= :start AND p.ngayKham < :end")
+    List<PhieuKham> findByNgayKhamBetween(
+            @Param("start") java.time.LocalDateTime start,
+            @Param("end") java.time.LocalDateTime end);
 
     /** Lấy danh sách phiếu khám theo mã bệnh nhân */
     @Query("SELECT p FROM PhieuKham p WHERE p.maBenhNhan = :maBenhNhan ORDER BY p.ngayKham DESC")
@@ -49,7 +52,7 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
 
     /** Lấy danh sách phiếu khám kèm tên bệnh nhân cho lịch sử */
     /** Kiểm tra phiếu khám theo bệnh nhân + chuyên khoa trong ngày (chống trùng) */
-    @Query("SELECT p FROM PhieuKham p WHERE p.maBenhNhan = :maBenhNhan AND p.maChuyenKhoa = :maChuyenKhoa AND p.ngayKham >= :start AND p.ngayKham <= :end")
+    @Query("SELECT p FROM PhieuKham p WHERE p.maBenhNhan = :maBenhNhan AND p.maChuyenKhoa = :maChuyenKhoa AND p.ngayKham >= :start AND p.ngayKham < :end")
     List<PhieuKham> findByMaBenhNhanAndMaChuyenKhoaAndNgayKhamBetween(
         @Param("maBenhNhan") Integer maBenhNhan,
         @Param("maChuyenKhoa") Integer maChuyenKhoa,
@@ -70,9 +73,13 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                    "LEFT JOIN kham_lam_sang kls ON p.ma_phieu_kham = kls.ma_phieu_kham " +
                    "WHERE p.ma_nhan_vien = :maBacSi " +
                    "AND p.trang_thai = 'HOAN_THANH' " +
-                   "AND DATE(p.ngay_kham) = CURRENT_DATE " +
+                   "AND p.ngay_kham >= :start " +
+                   "AND p.ngay_kham < :end " +
                    "ORDER BY p.ngay_kham DESC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findHistoryDetailed(@Param("maBacSi") Integer maBacSi);
+    List<java.util.Map<String, Object>> findHistoryDetailed(
+            @Param("maBacSi") Integer maBacSi,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     @Query(value = "SELECT p.ma_phieu_kham as maPhieuKham, p.ma_benh_nhan as maBenhNhan, b.ho_ten as hoTen, " +
                    "b.gioi_tinh as gioiTinh, b.ngay_sinh as ngaySinh, " +
@@ -85,9 +92,13 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                    "LEFT JOIN dich_vu dv ON p.ma_dich_vu = dv.ma_dich_vu " +
                    "WHERE p.ma_chuyen_khoa = :maChuyenKhoa " +
                    "AND p.trang_thai = 'CHO_BAC_SI' " +
-                   "AND DATE(p.ngay_kham) = CURRENT_DATE " +
+                   "AND p.ngay_kham >= :start " +
+                   "AND p.ngay_kham < :end " +
                    "ORDER BY p.ngay_kham DESC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findAssistantHistory(@Param("maChuyenKhoa") Integer maChuyenKhoa);
+    List<java.util.Map<String, Object>> findAssistantHistory(
+            @Param("maChuyenKhoa") Integer maChuyenKhoa,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     /** Lấy danh sách bệnh nhân đã hoàn thành khám (HOAN_THANH) để thu ngân thanh toán */
     @Query(value = "SELECT p.ma_phieu_kham as maPhieuKham, p.ma_benh_nhan as maBenhNhan, " +
@@ -98,9 +109,12 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                     "JOIN benh_nhan b ON p.ma_benh_nhan = b.ma_benh_nhan " +
                     "JOIN chuyen_khoa ck ON p.ma_chuyen_khoa = ck.ma_chuyen_khoa " +
                     "WHERE p.trang_thai = 'HOAN_THANH' " +
-                    "AND DATE(p.ngay_kham) = CURRENT_DATE " +
+                    "AND p.ngay_kham >= :start " +
+                    "AND p.ngay_kham < :end " +
                     "ORDER BY p.ngay_kham DESC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findCompletedPatientsToday();
+    List<java.util.Map<String, Object>> findCompletedPatientsToday(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     /** Tìm kiếm bệnh nhân đã khám hôm nay theo keyword (SQL LIKE) */
     @Query(value = "SELECT p.ma_phieu_kham as maPhieuKham, p.ma_benh_nhan as maBenhNhan, " +
@@ -111,14 +125,18 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                     "JOIN benh_nhan b ON p.ma_benh_nhan = b.ma_benh_nhan " +
                     "JOIN chuyen_khoa ck ON p.ma_chuyen_khoa = ck.ma_chuyen_khoa " +
                     "WHERE p.trang_thai = 'HOAN_THANH' " +
-                    "AND DATE(p.ngay_kham) = CURRENT_DATE " +
+                    "AND p.ngay_kham >= :start " +
+                    "AND p.ngay_kham < :end " +
                     "AND (:keyword IS NULL OR :keyword = '' " +
                     "     OR b.ho_ten LIKE CONCAT('%', :keyword, '%') " +
                     "     OR b.so_dien_thoai LIKE CONCAT('%', :keyword, '%') " +
                     "     OR CAST(p.ma_phieu_kham AS CHAR) LIKE CONCAT('%', :keyword, '%') " +
                     "     OR ck.ten_chuyen_khoa LIKE CONCAT('%', :keyword, '%')) " +
                     "ORDER BY p.ngay_kham DESC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findCompletedPatientsTodayWithSearch(@Param("keyword") String keyword);
+    List<java.util.Map<String, Object>> findCompletedPatientsTodayWithSearch(
+            @Param("keyword") String keyword,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     @Query(value = "SELECT p.ma_phieu_kham as maPhieuKham, p.ma_benh_nhan as maBenhNhan, b.ho_ten as hoTen, " +
                    "b.gioi_tinh as gioiTinh, b.ngay_sinh as ngaySinh, b.so_dien_thoai as soDienThoai, " +
@@ -135,6 +153,28 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                    "ORDER BY p.ngay_kham DESC", nativeQuery = true)
     List<java.util.Map<String, Object>> findHistoryByChuyenKhoaAllDays(@Param("maChuyenKhoa") Integer maChuyenKhoa);
 
+    @Query(value = "SELECT pk.ma_phieu_kham as maPhieuKham, ct.trang_thai_dv as trangThaiDv, " +
+                   "CASE WHEN dv.loai_dich_vu = 'CLS_XET_NGHIEM' THEN " +
+                   "(SELECT kq.trang_thai FROM ket_qua_xet_nghiem kq " +
+                   "WHERE kq.ma_chi_tiet_chi_dinh = ct.id " +
+                   "ORDER BY kq.ngay_thuc_hien DESC, kq.id DESC LIMIT 1) " +
+                   "WHEN dv.loai_dich_vu = 'CLS_CHAN_DOAN_HINH_ANH' THEN " +
+                   "(SELECT kq.trang_thai FROM ket_qua_cdha kq " +
+                   "WHERE kq.id_chi_tiet_chi_dinh = ct.id " +
+                   "ORDER BY kq.ngay_thuc_hien DESC, kq.id DESC LIMIT 1) " +
+                   "END as trangThaiKq " +
+                   "FROM phieu_kham pk " +
+                   "JOIN phieu_chi_dinh pcd ON pcd.ma_phieu_kham = pk.ma_phieu_kham " +
+                   "JOIN chi_tiet_chi_dinh ct ON ct.ma_phieu_chi_dinh = pcd.ma_phieu_chi_dinh " +
+                   "JOIN dich_vu dv ON dv.ma_dich_vu = ct.ma_dich_vu " +
+                   "WHERE pk.ma_chuyen_khoa = :maChuyenKhoa " +
+                   "AND pk.trang_thai = 'HOAN_THANH' " +
+                   "AND dv.ma_chuyen_khoa = pk.ma_chuyen_khoa " +
+                   "AND dv.loai_dich_vu IN ('CLS_XET_NGHIEM', 'CLS_CHAN_DOAN_HINH_ANH')",
+           nativeQuery = true)
+    List<java.util.Map<String, Object>> findHistoryClsStatusesByChuyenKhoa(
+            @Param("maChuyenKhoa") Integer maChuyenKhoa);
+
     @Query(value = "SELECT p.ma_phieu_kham as maPhieuKham, p.ma_benh_nhan as maBenhNhan, b.ho_ten as hoTen, " +
                     "b.gioi_tinh as gioiTinh, b.ngay_sinh as ngaySinh, b.so_dien_thoai as soDienThoai, b.cccd as cccd, " +
                     "p.ngay_kham as ngayKham, p.trang_thai as trangThai, p.ghi_chu as ghiChu, " +
@@ -146,9 +186,13 @@ public interface PhieuKhamRepository extends JpaRepository<PhieuKham, Integer> {
                     "LEFT JOIN dich_vu dv ON p.ma_dich_vu = dv.ma_dich_vu " +
                     "WHERE p.ma_chuyen_khoa = :maChuyenKhoa " +
                     "AND p.trang_thai = 'CHO_BAC_SI' " +
-                    "AND DATE(p.ngay_kham) = CURRENT_DATE " +
+                    "AND p.ngay_kham >= :start " +
+                    "AND p.ngay_kham < :end " +
                     "ORDER BY p.ngay_kham ASC", nativeQuery = true)
-    List<java.util.Map<String, Object>> findPendingClsConfirmation(@Param("maChuyenKhoa") Integer maChuyenKhoa);
+    List<java.util.Map<String, Object>> findPendingClsConfirmation(
+            @Param("maChuyenKhoa") Integer maChuyenKhoa,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     /**
      * Lấy danh sách phiếu khám + kham_lam_sang + chuyen_khoa + nhan_vien theo ma_benh_nhan,

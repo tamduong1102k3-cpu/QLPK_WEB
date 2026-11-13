@@ -18,6 +18,8 @@ public interface BangPhanCongCaLamRepository extends JpaRepository<BangPhanCongC
     List<BangPhanCongCaLam> findByNgay(LocalDate ngay);
     List<BangPhanCongCaLam> findByNgayIsNullAndThu(String thu);
     List<BangPhanCongCaLam> findByMaNhanVien(Integer maNhanVien);
+    List<BangPhanCongCaLam> findByPhongIn(List<Integer> phongs);
+    List<BangPhanCongCaLam> findByMaNhanVienIn(List<Integer> maNhanViens);
     boolean existsByMaNhanVienAndNgayAndCa_Id(Integer maNhanVien, LocalDate ngay, Integer maCaId);
     Optional<BangPhanCongCaLam> findByMaNhanVienAndNgayAndCa_Id(Integer maNhanVien, LocalDate ngay, Integer maCaId);
     List<BangPhanCongCaLam> findByMaNhanVienAndNgayBetween(Integer maNhanVien, LocalDate start, LocalDate end);

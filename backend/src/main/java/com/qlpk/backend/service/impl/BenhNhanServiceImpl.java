@@ -611,7 +611,8 @@ public class BenhNhanServiceImpl implements BenhNhanService {
      */
     private void enrichChiTietDichVu(ChiTietDichVuDTO ctDto, ChiTietChiDinh ct) {
         // Xét nghiệm
-        ketQuaXetNghiemRepository.findByMaChiTietChiDinh(ct.getId()).ifPresent(kq -> {
+        ketQuaXetNghiemRepository
+                .findFirstByMaChiTietChiDinhOrderByNgayThucHienDescIdDesc(ct.getId()).ifPresent(kq -> {
             ctDto.setKetQuaXetNghiem(kq);
             if (kq.getMaBsKetLuan() != null) {
                 nhanVienRepository.findById(kq.getMaBsKetLuan())
@@ -639,7 +640,8 @@ public class BenhNhanServiceImpl implements BenhNhanService {
             ctDto.setChiSoXetNghiem(chiSoList);
         });
         // Chẩn đoán hình ảnh
-        ketQuaCdhaRepository.findByIdChiTietChiDinh(ct.getId()).ifPresent(kq -> {
+        ketQuaCdhaRepository
+                .findFirstByIdChiTietChiDinhOrderByNgayThucHienDescIdDesc(ct.getId()).ifPresent(kq -> {
             ctDto.setKetQuaCdha(kq);
             // Fill transient ảnh CĐHA từ bảng hinh_anh_ket_qua_cdha (đồng bộ KetQuaCdhaServiceImpl#fillAnh)
             if (kq.getId() != null) {

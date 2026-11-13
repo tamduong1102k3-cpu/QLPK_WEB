@@ -7,6 +7,7 @@ import com.qlpk.backend.service.KetQuaCdhaService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -41,9 +42,12 @@ public class KetQuaCdhaController {
     }
 
     @PostMapping
-    public ResponseEntity<KetQuaCdha> create(@RequestBody KetQuaCdha entity) {
+    public ResponseEntity<?> create(@RequestBody KetQuaCdha entity) {
         try {
             return ResponseEntity.ok(service.create(entity));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode())
+                    .body(Map.of("message", e.getReason() != null ? e.getReason() : "Không được phép thực hiện thao tác"));
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
         }

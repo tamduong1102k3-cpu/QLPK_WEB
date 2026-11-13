@@ -12,6 +12,7 @@ import com.qlpk.backend.repository.DichVuRepository;
 import com.qlpk.backend.repository.LichKhamRepository;
 import com.qlpk.backend.repository.PhieuKhamRepository;
 import com.qlpk.backend.service.DangKyKhamBenhService;
+import com.qlpk.backend.service.BangPhanCongCaLamService;
 import com.qlpk.backend.service.HanMucPhongService;
 import com.qlpk.backend.util.TimeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,9 @@ public class DangKyKhamBenhServiceImpl implements DangKyKhamBenhService {
     @Autowired
     private HanMucPhongService hanMucPhongService;
 
+    @Autowired
+    private BangPhanCongCaLamService bangPhanCongCaLamService;
+
     @Override
     public List<DangKyKhamBenh> getAll() {
         return repository.findAll();
@@ -61,15 +65,28 @@ public class DangKyKhamBenhServiceImpl implements DangKyKhamBenhService {
     @Override
     @Transactional
     public DangKyKhamBenh create(CreateDangKyKhamBenhRequest request) {
+        if (request.getMaDichVu() == null) {
+            throw new IllegalArgumentException("Thiếu dịch vụ đăng ký");
+        }
+
         // Optimistic concurrency check: Lễ tân không được tiếp đón dựa trên dịch vụ đã cũ
-        if (request.getMaDichVu() != null) {
-            DichVu dichVu = dichVuRepository.findById(request.getMaDichVu())
-                    .orElseThrow(() -> new ObjectOptimisticLockingFailureException(
-                        DangKyKhamBenh.class, request.getMaDichVu()));
-            Long clientVersion = request.getVersion();
-            if (clientVersion == null || !clientVersion.equals(dichVu.getVersion())) {
-                throw new ObjectOptimisticLockingFailureException(
-                        DichVu.class, request.getMaDichVu());
+        DichVu dichVu = dichVuRepository.findById(request.getMaDichVu())
+                .orElseThrow(() -> new ObjectOptimisticLockingFailureException(
+                    DangKyKhamBenh.class, request.getMaDichVu()));
+        Long clientVersion = request.getVersion();
+        if (clientVersion == null || !clientVersion.equals(dichVu.getVersion())) {
+            throw new ObjectOptimisticLockingFailureException(
+                    DichVu.class, request.getMaDichVu());
+        }
+
+        if (isClsService(dichVu.getLoaiDichVu())) {
+            Integer expectedSpecialty = "CLS_XET_NGHIEM".equals(dichVu.getLoaiDichVu()) ? 7 : 12;
+            if (!expectedSpecialty.equals(dichVu.getMaChuyenKhoa())
+                    || !dichVu.getMaChuyenKhoa().equals(request.getMaChuyenKhoa())) {
+                throw new IllegalArgumentException("Chuyên khoa đăng ký không khớp với dịch vụ CLS");
+            }
+            if (!bangPhanCongCaLamService.isValidClsRoom(request.getMaDichVu(), request.getMaPhong())) {
+                throw new IllegalArgumentException("Phòng CLS không có kỹ thuật viên được phân công trực hợp lệ");
             }
         }
 
@@ -80,6 +97,7 @@ public class DangKyKhamBenhServiceImpl implements DangKyKhamBenhService {
         DangKyKhamBenh entity = new DangKyKhamBenh();
         entity.setMaBenhNhan(request.getMaBenhNhan());
         entity.setMaNhanVien(request.getMaNhanVien());
+        entity.setMaBacSi(request.getMaBacSi());
         entity.setMaChuyenKhoa(request.getMaChuyenKhoa());
         entity.setMaPhong(request.getMaPhong());
         entity.setMaDichVu(request.getMaDichVu());
@@ -127,6 +145,11 @@ public class DangKyKhamBenhServiceImpl implements DangKyKhamBenhService {
         return saved;
     }
 
+    private boolean isClsService(String loaiDichVu) {
+        return "CLS_XET_NGHIEM".equals(loaiDichVu)
+                || "CLS_CHAN_DOAN_HINH_ANH".equals(loaiDichVu);
+    }
+
     @Override
     public DangKyKhamBenh update(Integer id, DangKyKhamBenh entity) {
         if (repository.existsById(id)) {
@@ -145,17 +168,17 @@ public class DangKyKhamBenhServiceImpl implements DangKyKhamBenhService {
     }
 
     @Override
-    public List<Map<String, Object>> getTodayRegistrationsDetailed() {
+    public List<Map<String, Object>> getTodayRegistrationsDetailed(Integer maBacSi) {
         LocalDateTime startOfDay = TimeUtil.today().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
-        return repository.findTodayRegistrationsDetailed(startOfDay, endOfDay);
+        return repository.findTodayRegistrationsDetailed(startOfDay, endOfDay, maBacSi);
     }
 
     @Override
-    public List<Map<String, Object>> getTodayRegistrationsDetailedWithSearch(String keyword) {
+    public List<Map<String, Object>> getTodayRegistrationsDetailedWithSearch(String keyword, Integer maBacSi) {
         LocalDateTime startOfDay = TimeUtil.today().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
-        return repository.findTodayRegistrationsDetailedWithSearch(startOfDay, endOfDay, keyword);
+        return repository.findTodayRegistrationsDetailedWithSearch(startOfDay, endOfDay, keyword, maBacSi);
     }
 
     @Override

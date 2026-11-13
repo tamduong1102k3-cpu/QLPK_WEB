@@ -5,10 +5,13 @@ import com.qlpk.backend.repository.ChiTietHoaDonRepository;
 import com.qlpk.backend.repository.HoaDonRepository;
 import com.qlpk.backend.repository.PhieuKhamRepository;
 import com.qlpk.backend.service.ThongKeService;
+import com.qlpk.backend.util.TimeUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -57,7 +60,10 @@ public class ThongKeServiceImpl implements ThongKeService {
         Set<Integer> years = new TreeSet<>(Comparator.reverseOrder());
         years.addAll(hoaDonRepository.findDistinctYears());
         years.addAll(phieuKhamRepository.findDistinctYears());
-        if (years.isEmpty()) years.add(java.time.LocalDate.now().getYear());
+        if (years.isEmpty()) {
+            LocalDate today = TimeUtil.today();
+            years.add(today.getYear());
+        }
         return new ArrayList<>(years);
     }
 
@@ -67,17 +73,19 @@ public class ThongKeServiceImpl implements ThongKeService {
         
         summary.put("tongBenhNhan", benhNhanRepository.count());
         
-        java.time.LocalDateTime startOfDay = java.time.LocalDate.now().atStartOfDay();
-        java.time.LocalDateTime endOfDay = java.time.LocalDate.now().atTime(java.time.LocalTime.MAX);
+        LocalDate today = TimeUtil.today();
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.plusDays(1).atStartOfDay();
         summary.put("lichKhamHomNay", phieuKhamRepository.countByNgayKhamBetween(startOfDay, endOfDay));
         
-        int currentMonth = java.time.LocalDate.now().getMonthValue();
-        int currentYear = java.time.LocalDate.now().getYear();
+        int currentMonth = today.getMonthValue();
+        int currentYear = today.getYear();
         java.math.BigDecimal revenue = hoaDonRepository.sumRevenueByMonth(currentMonth, currentYear);
         summary.put("doanhThuThang", revenue != null ? revenue : java.math.BigDecimal.ZERO);
         
-        java.time.LocalDateTime sevenDaysAgo = java.time.LocalDate.now().minusDays(6).atStartOfDay();
-        List<Object[]> revenue7Days = hoaDonRepository.thongKeDoanhThu7Ngay(sevenDaysAgo);
+        LocalDateTime sevenDaysAgo = today.minusDays(6).atStartOfDay();
+        LocalDateTime endOfTomorrow = today.plusDays(1).atStartOfDay();
+        List<Object[]> revenue7Days = hoaDonRepository.thongKeDoanhThu7Ngay(sevenDaysAgo, endOfTomorrow);
         // Chuyển đổi sang [dateString, revenue] để frontend dễ xử lý
         List<Object[]> formattedRevenue7Days = new ArrayList<>();
         for (Object[] row : revenue7Days) {
@@ -89,7 +97,7 @@ public class ThongKeServiceImpl implements ThongKeService {
         }
         summary.put("doanhThu7Ngay", formattedRevenue7Days);
         
-        summary.put("luotKhamTuan", phieuKhamRepository.countByNgayKhamBetween(sevenDaysAgo, java.time.LocalDateTime.now()));
+        summary.put("luotKhamTuan", phieuKhamRepository.countByNgayKhamBetween(sevenDaysAgo, TimeUtil.now()));
         
         List<Object[]> topDichVu = chiTietHoaDonRepository.thongKeTopDichVu(org.springframework.data.domain.PageRequest.of(0, 5));
         summary.put("topDichVu", topDichVu);

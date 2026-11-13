@@ -2,6 +2,7 @@ package com.qlpk.backend.service;
 
 import com.qlpk.backend.dto.BulkDefaultShiftRequest;
 import com.qlpk.backend.dto.BulkDefaultShiftResult;
+import com.qlpk.backend.dto.ClsRoomOptionDTO;
 import com.qlpk.backend.dto.LichThangDTO;
 import com.qlpk.backend.dto.NhanCaMacDinhDenCuoiNamRequest;
 import com.qlpk.backend.dto.DoctorScheduleSummaryDTO;
@@ -48,6 +49,9 @@ public interface BangPhanCongCaLamService {
     List<BangPhanCongCaLam> updateDefaultInMonth(BulkDefaultShiftRequest request);
 
     List<BangPhanCongCaLam> getWorkingToday();
+    List<ClsRoomOptionDTO> getAvailableClsRooms(Integer maDichVu);
+    List<ClsRoomOptionDTO> getAvailableClsRoomsForReferral(Integer maDichVu);
+    boolean isValidClsRoom(Integer maDichVu, Integer maPhong);
     List<BangPhanCongCaLam> getByMaNhanVien(Integer maNhanVien);
     Map<String, Object> getCurrentRoom(Integer maNhanVien);
 

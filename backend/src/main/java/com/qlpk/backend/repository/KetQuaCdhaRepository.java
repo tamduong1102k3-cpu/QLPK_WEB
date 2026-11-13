@@ -2,9 +2,11 @@ package com.qlpk.backend.repository;
 
 import com.qlpk.backend.entity.KetQuaCdha;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -12,8 +14,16 @@ import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface KetQuaCdhaRepository extends JpaRepository<KetQuaCdha, Integer> {
-    /** Tìm kết quả chẩn đoán hình ảnh theo mã chi tiết chỉ định */
-    Optional<KetQuaCdha> findByIdChiTietChiDinh(Integer idChiTietChiDinh);
+    boolean existsByIdChiTietChiDinh(Integer idChiTietChiDinh);
+
+    @Modifying
+    @Query(value = "UPDATE ket_qua_cdha SET ma_bac_si_thuc_hien = :maBacSi " +
+            "WHERE id = :id AND trang_thai = 'CHO_DUYET' AND ma_bac_si_thuc_hien IS NULL",
+            nativeQuery = true)
+    int claimPendingResult(@Param("id") Integer id, @Param("maBacSi") Integer maBacSi);
+
+    Optional<KetQuaCdha> findFirstByIdChiTietChiDinhOrderByNgayThucHienDescIdDesc(
+            Integer idChiTietChiDinh);
 
     @Query(value = "SELECT kq.id AS id, kq.ket_luan AS ketLuan, " +
             "kq.mo_ta_hinh_anh AS moTaHinhAnh, kq.de_nghi AS deNghi, " +
@@ -56,8 +66,11 @@ public interface KetQuaCdhaRepository extends JpaRepository<KetQuaCdha, Integer>
             "JOIN phieu_kham pk ON pcd.ma_phieu_kham = pk.ma_phieu_kham " +
             "JOIN benh_nhan b ON pk.ma_benh_nhan = b.ma_benh_nhan " +
             "LEFT JOIN dang_ky_kham_benh dk ON dk.ma_phieu_kham = pk.ma_phieu_kham " +
-            "WHERE DATE(k.ngay_thuc_hien) = CURDATE()", nativeQuery = true)
-    List<Map<String, Object>> findResultsTodayWithPatientInfo();
+            "WHERE k.ngay_thuc_hien >= :start " +
+            "AND k.ngay_thuc_hien < :end", nativeQuery = true)
+    List<Map<String, Object>> findResultsTodayWithPatientInfo(
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
     /** Tìm kết quả chẩn đoán hình ảnh trong ngày kèm thông tin bệnh nhân theo bác sĩ thực hiện */
     @Query(value = "SELECT k.id as id, " +
@@ -73,7 +86,11 @@ public interface KetQuaCdhaRepository extends JpaRepository<KetQuaCdha, Integer>
             "JOIN phieu_chi_dinh pcd ON ct.ma_phieu_chi_dinh = pcd.ma_phieu_chi_dinh " +
             "JOIN phieu_kham pk ON pcd.ma_phieu_kham = pk.ma_phieu_kham " +
             "JOIN benh_nhan b ON pk.ma_benh_nhan = b.ma_benh_nhan " +
-            "WHERE DATE(k.ngay_thuc_hien) = CURDATE() " +
+            "WHERE k.ngay_thuc_hien >= :start " +
+            "AND k.ngay_thuc_hien < :end " +
             "AND k.ma_bac_si_thuc_hien = :maBacSi", nativeQuery = true)
-    List<Map<String, Object>> findResultsTodayWithPatientInfoByDoctorId(@Param("maBacSi") Integer maBacSi);
+    List<Map<String, Object>> findResultsTodayWithPatientInfoByDoctorId(
+            @Param("maBacSi") Integer maBacSi,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 }

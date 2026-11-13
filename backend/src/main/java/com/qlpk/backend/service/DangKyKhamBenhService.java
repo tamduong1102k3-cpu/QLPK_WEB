@@ -12,7 +12,7 @@ public interface DangKyKhamBenhService {
     DangKyKhamBenh update(Integer id, DangKyKhamBenh entity);
     void delete(Integer id);
     
-    List<Map<String, Object>> getTodayRegistrationsDetailed();
-    List<Map<String, Object>> getTodayRegistrationsDetailedWithSearch(String keyword);
+    List<Map<String, Object>> getTodayRegistrationsDetailed(Integer maBacSi);
+    List<Map<String, Object>> getTodayRegistrationsDetailedWithSearch(String keyword, Integer maBacSi);
     DangKyKhamBenh updateStatus(Integer id, String status);
 }

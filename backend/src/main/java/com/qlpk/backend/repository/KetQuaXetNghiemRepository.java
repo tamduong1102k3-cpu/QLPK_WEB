@@ -3,16 +3,25 @@ package com.qlpk.backend.repository;
 import com.qlpk.backend.entity.KetQuaXetNghiem;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
-
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Repository
 public interface KetQuaXetNghiemRepository extends JpaRepository<KetQuaXetNghiem, Integer> {
-    Optional<KetQuaXetNghiem> findByMaChiTietChiDinh(Integer maChiTietChiDinh);
+    Optional<KetQuaXetNghiem> findFirstByMaChiTietChiDinhOrderByNgayThucHienDescIdDesc(
+            Integer maChiTietChiDinh);
+
+    @Modifying
+    @Query(value = "UPDATE ket_qua_xet_nghiem SET ma_bs_ket_luan = :maBacSi " +
+            "WHERE id = :id AND trang_thai = 'CHO_DUYET' AND ma_bs_ket_luan IS NULL",
+            nativeQuery = true)
+    int claimPendingResult(@Param("id") Integer id, @Param("maBacSi") Integer maBacSi);
 
     @Query(value = "SELECT kq.id AS id, kq.ket_luan AS ketLuan, " +
             "kq.ghi_chu_them AS ghiChuThem, " +
@@ -51,9 +60,13 @@ public interface KetQuaXetNghiemRepository extends JpaRepository<KetQuaXetNghiem
                    "JOIN dich_vu dv ON ct.ma_dich_vu = dv.ma_dich_vu " +
                    "WHERE kq.ma_bs_ket_luan = :maBacSi " +
                    "AND kq.trang_thai = 'DA_DUYET' " +
-                   "AND DATE(kq.ngay_thuc_hien) = CURRENT_DATE " +
+                   "AND kq.ngay_thuc_hien >= :start " +
+                   "AND kq.ngay_thuc_hien < :end " +
                    "ORDER BY kq.ngay_thuc_hien DESC", nativeQuery = true)
-    List<Map<String, Object>> findApprovedHistoryDetailed(@Param("maBacSi") Integer maBacSi);
+    List<Map<String, Object>> findApprovedHistoryDetailed(
+            @Param("maBacSi") Integer maBacSi,
+            @Param("start") LocalDateTime start,
+            @Param("end") LocalDateTime end);
 
 
    /** Tìm kết quả xét nghiệm trong ngày kèm thông tin bệnh nhân */
@@ -72,7 +85,10 @@ public interface KetQuaXetNghiemRepository extends JpaRepository<KetQuaXetNghiem
            "JOIN phieu_kham pk ON pcd.ma_phieu_kham = pk.ma_phieu_kham " +
            "JOIN benh_nhan b ON pk.ma_benh_nhan = b.ma_benh_nhan " +
            "LEFT JOIN dang_ky_kham_benh dk ON dk.ma_phieu_kham = pk.ma_phieu_kham " +
-           "WHERE DATE(k.ngay_thuc_hien) = CURDATE()", nativeQuery = true)
-      List<Map<String, Object>> findResultsTodayWithPatientInfo();
+           "WHERE k.ngay_thuc_hien >= :start " +
+           "AND k.ngay_thuc_hien < :end", nativeQuery = true)
+      List<Map<String, Object>> findResultsTodayWithPatientInfo(
+              @Param("start") LocalDateTime start,
+              @Param("end") LocalDateTime end);
 
 }

@@ -3,6 +3,7 @@ package com.qlpk.backend.controller;
 import com.qlpk.backend.entity.HinhAnhKetQuaCdha;
 import com.qlpk.backend.entity.*;
 import com.qlpk.backend.repository.*;
+import com.qlpk.backend.service.ClsResultAuthorizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +37,12 @@ public class KetQuaClsController {
     @Autowired
     private HinhAnhKetQuaCdhaRepository hinhAnhKetQuaCdhaRepository;
 
+    @Autowired
+    private NhanVienRepository nhanVienRepository;
+
+    @Autowired
+    private ClsResultAuthorizationService clsResultAuthorizationService;
+
     @GetMapping("/{chiDinhId}")
     public ResponseEntity<?> getDetail(@PathVariable Integer chiDinhId) {
         var detailOpt = chiTietRepository.findById(chiDinhId);
@@ -50,11 +57,32 @@ public class KetQuaClsController {
         res.put("chiDinhId", chiDinhId);
         res.put("tenDichVu", tenDv);
 
-        var kqxnOpt = ketQuaXetNghiemRepository.findByMaChiTietChiDinh(chiDinhId);
+        var kqxnOpt = ketQuaXetNghiemRepository
+                .findFirstByMaChiTietChiDinhOrderByNgayThucHienDescIdDesc(chiDinhId);
         if (kqxnOpt.isPresent()) {
             KetQuaXetNghiem kqxn = kqxnOpt.get();
+            NhanVien doctor = clsResultAuthorizationService.getClsDoctorIfAuthenticated();
+            if (doctor != null && "CHO_DUYET".equals(kqxn.getTrangThai())) {
+                clsResultAuthorizationService.requireAuthorizedClsDetail(
+                        chiDinhId, doctor, "CLS_XET_NGHIEM");
+                clsResultAuthorizationService.requireDoctorOwnsPendingResult(
+                        doctor.getMaNhanVien(), kqxn.getTrangThai(), kqxn.getMaBsKetLuan());
+            }
             res.put("loaiDichVu", "XET_NGHIEM");
+            res.put("ngayThucHien", kqxn.getNgayThucHien());
+            res.put("nguoiThucHien", kqxn.getNguoiThucHien());
+            if (kqxn.getNguoiThucHien() != null) {
+                nhanVienRepository.findById(kqxn.getNguoiThucHien())
+                        .ifPresent(nv -> res.put("tenNguoiThucHien", nv.getHoTen()));
+            }
+            res.put("maBsKetLuan", kqxn.getMaBsKetLuan());
+            if (kqxn.getMaBsKetLuan() != null) {
+                nhanVienRepository.findById(kqxn.getMaBsKetLuan())
+                        .ifPresent(nv -> res.put("tenBsKetLuan", nv.getHoTen()));
+            }
+            res.put("trangThai", kqxn.getTrangThai());
             res.put("ketLuan", kqxn.getKetLuan());
+            res.put("ghiChuThem", kqxn.getGhiChuThem());
             // nội dung gộp 1 cột ket_qua
             res.put("noiDungKetQua", kqxn.getKetQua());
             // chỉ số chi tiết ở bảng chi_tiet_ket_qua_xn
@@ -62,9 +90,17 @@ public class KetQuaClsController {
             return ResponseEntity.ok(res);
         }
 
-        var kqcdhaOpt = ketQuaCdhaRepository.findByIdChiTietChiDinh(chiDinhId);
+        var kqcdhaOpt = ketQuaCdhaRepository
+                .findFirstByIdChiTietChiDinhOrderByNgayThucHienDescIdDesc(chiDinhId);
         if (kqcdhaOpt.isPresent()) {
             KetQuaCdha kqcdha = kqcdhaOpt.get();
+            NhanVien doctor = clsResultAuthorizationService.getClsDoctorIfAuthenticated();
+            if (doctor != null && "CHO_DUYET".equals(kqcdha.getTrangThai())) {
+                clsResultAuthorizationService.requireAuthorizedClsDetail(
+                        chiDinhId, doctor, "CLS_CHAN_DOAN_HINH_ANH");
+                clsResultAuthorizationService.requireDoctorOwnsPendingResult(
+                        doctor.getMaNhanVien(), kqcdha.getTrangThai(), kqcdha.getMaBacSiThucHien());
+            }
             res.put("loaiDichVu", "CDHA");
             res.put("ketLuan", kqcdha.getKetLuan());
             res.put("noiDungKetQua", kqcdha.getMoTaHinhAnh());

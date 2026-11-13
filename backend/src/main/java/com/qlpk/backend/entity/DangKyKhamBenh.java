@@ -23,6 +23,9 @@ public class DangKyKhamBenh {
     @Column(name = "ma_nhan_vien")
     private Integer maNhanVien; 
 
+    @Column(name = "ma_bac_si")
+    private Integer maBacSi;
+
     @Column(name = "ma_chuyen_khoa")
     private Integer maChuyenKhoa;
 
