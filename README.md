@@ -22,7 +22,6 @@ Dự án Fullstack quản lý phòng khám toàn diện, hỗ trợ thanh toán 
 
 -------Danh sách tài khoản Quản trị viên------
 
-- Lễ tân : 
 + Tài khoản : tamduonge7@gmail.com
 + Mật khẩu : 123456
 
